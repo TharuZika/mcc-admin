@@ -5,12 +5,12 @@ import type { Vehicle } from '../../types';
 
 interface VehicleFormProps {
   vehicle?: Vehicle;
-  onSubmit: (data: Partial<Vehicle>) => void;
+  onSubmit: (data: FormData) => void;
   onCancel: () => void;
 }
 
 export default function VehicleForm({ vehicle, onSubmit, onCancel }: VehicleFormProps) {
-  const [formData, setFormData] = useState<Partial<Vehicle>>({
+  const [formData, setFormData] = useState({
     type: '',
     seats: 0,
     model: '',
@@ -21,13 +21,29 @@ export default function VehicleForm({ vehicle, onSubmit, onCancel }: VehicleForm
     pricePerKm: 0,
     isTaxi: false,
     isRent: false,
-    status: 'active',
-    imgUrl: '',
+    status: 'A',
+    image: null as File | null,
   });
+
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (vehicle) {
-      setFormData(vehicle);
+      setFormData({
+        type: vehicle.type,
+        seats: vehicle.seats,
+        model: vehicle.model,
+        plateNo: vehicle.plateNo,
+        make: vehicle.make,
+        year: vehicle.year,
+        pricePerDay: vehicle.pricePerDay,
+        pricePerKm: vehicle.pricePerKm,
+        isTaxi: vehicle.isTaxi,
+        isRent: vehicle.isRent,
+        status: vehicle.status === 'active' ? 'A' : vehicle.status === 'maintenance' ? 'M' : 'I',
+        image: null,
+      });
+      setPreviewUrl(vehicle.imgUrl);
     }
   }, [vehicle]);
 
@@ -47,9 +63,41 @@ export default function VehicleForm({ vehicle, onSubmit, onCancel }: VehicleForm
     }));
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData(prev => ({
+        ...prev,
+        image: file,
+      }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    const submitData = new FormData();
+    
+    // Handle each field type appropriately
+    Object.entries(formData).forEach(([key, value]) => {
+      if (value !== null) {
+        if (value instanceof File) {
+          submitData.append(key, value);
+        } else if (typeof value === 'boolean') {
+          submitData.append(key, value.toString());
+        } else if (typeof value === 'number') {
+          submitData.append(key, value.toString());
+        } else {
+          submitData.append(key, value);
+        }
+      }
+    });
+    
+    onSubmit(submitData);
   };
 
   return (
@@ -90,9 +138,9 @@ export default function VehicleForm({ vehicle, onSubmit, onCancel }: VehicleForm
             required
           >
             <option value="">Select Type</option>
-            <option value="Sedan">Sedan</option>
+            <option value="CAR">Car</option>
+            <option value="VAN">Van</option>
             <option value="SUV">SUV</option>
-            <option value="Van">Van</option>
           </select>
         </div>
 
@@ -157,17 +205,29 @@ export default function VehicleForm({ vehicle, onSubmit, onCancel }: VehicleForm
           />
         </div>
 
-        {/* Image URL */}
+        {/* Image Upload */}
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700">Image URL</label>
-          <input
-            type="text"
-            name="imgUrl"
-            value={formData.imgUrl}
-            onChange={handleChange}
-            className="w-full px-3 py-2 mt-1 border rounded-md"
-            required
-          />
+          <label className="block text-sm font-medium text-gray-700">Vehicle Image</label>
+          <div className="mt-1 flex items-center space-x-4">
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt="Vehicle preview"
+                className="w-32 h-32 object-cover rounded-lg"
+              />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="block w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-md file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100"
+            />
+          </div>
         </div>
 
         {/* Status */}
@@ -180,9 +240,9 @@ export default function VehicleForm({ vehicle, onSubmit, onCancel }: VehicleForm
             className="w-full px-3 py-2 mt-1 border rounded-md"
             required
           >
-            <option value="active">Active</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="inactive">Inactive</option>
+            <option value="A">Active</option>
+            <option value="M">Maintenance</option>
+            <option value="I">Inactive</option>
           </select>
         </div>
 

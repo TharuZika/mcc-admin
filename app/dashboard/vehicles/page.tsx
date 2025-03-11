@@ -1,54 +1,91 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch } from 'react-icons/fi';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import VehicleForm from '../../components/vehicles/VehicleForm';
 import Modal from '../../components/common/Modal';
-import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { vehicleService } from '../../services/vehicleService';
 import type { Vehicle } from '../../types';
 
-// Dummy data for vehicles
-const vehicles: Vehicle[] = [
-  {
-    id: '1',
-    type: 'Sedan',
-    seats: 4,
-    model: 'Toyota Camry',
-    plateNo: 'ABC-123',
-    make: 'Toyota',
-    year: 2022,
-    pricePerDay: 50,
-    pricePerKm: 0.5,
-    isTaxi: true,
-    isRent: true,
-    imgUrl: '/vehicles/camry.jpg',
-    status: 'active',
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
-  },
-  // Add more dummy vehicles as needed
-];
-
 export default function VehiclesPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const recordsPerPage = 10;
 
-  const handleAddVehicle = (data: Partial<Vehicle>) => {
-    // TODO: Implement API call to add vehicle
-    console.log('Adding vehicle:', data);
-    setIsModalOpen(false);
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      fetchVehicles();
+    }
+  }, [currentPage, status, session]);
+
+  const fetchVehicles = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await vehicleService.getVehicles(currentPage, recordsPerPage);
+      setVehicles(response.vehicles);
+      setTotalPages(response.totalPages);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch vehicles');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEditVehicle = (data: Partial<Vehicle>) => {
-    // TODO: Implement API call to update vehicle
-    console.log('Updating vehicle:', data);
-    setIsModalOpen(false);
-    setSelectedVehicle(null);
+  const handleAddVehicle = async (formData: FormData) => {
+    try {
+      await vehicleService.addVehicle(formData);
+      setIsModalOpen(false);
+      fetchVehicles();
+    } catch (err) {
+      setError('Failed to add vehicle');
+      console.error('Error adding vehicle:', err);
+    }
   };
 
-  const handleDeleteVehicle = (id: string) => {
-    // TODO: Implement API call to delete vehicle
-    console.log('Deleting vehicle:', id);
+  const handleEditVehicle = async (formData: FormData) => {
+    try {
+      if (selectedVehicle) {
+        await vehicleService.updateVehicle(selectedVehicle.id, formData);
+        setIsModalOpen(false);
+        setSelectedVehicle(undefined);
+        fetchVehicles();
+      }
+    } catch (err) {
+      setError('Failed to update vehicle');
+      console.error('Error updating vehicle:', err);
+    }
+  };
+
+  const handleDeleteVehicle = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this vehicle?')) {
+      try {
+        await vehicleService.deleteVehicle(id);
+        fetchVehicles();
+      } catch (err) {
+        setError('Failed to delete vehicle');
+        console.error('Error deleting vehicle:', err);
+      }
+    }
   };
 
   const openEditModal = (vehicle: Vehicle) => {
@@ -56,53 +93,118 @@ export default function VehiclesPage() {
     setIsModalOpen(true);
   };
 
+  const filteredVehicles = vehicles.filter(vehicle => {
+    const matchesSearch = 
+      vehicle.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.plateNo.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesType = typeFilter === 'all' || 
+      (typeFilter === 'taxi' && vehicle.isTaxi) ||
+      (typeFilter === 'rental' && vehicle.isRent);
+    
+    const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
+    
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'AVAILABLE':
+        return 'bg-green-100 text-green-800';
+      case 'MAINTENANCE':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'INACTIVE':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (status === 'loading' || isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return null; // Will be redirected by the useEffect
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <div className="text-red-600">{error}</div>
+          <button
+            onClick={fetchVehicles}
+            className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Vehicles Management</h1>
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-semibold text-gray-900">Vehicles</h1>
           <button
             onClick={() => {
-              setSelectedVehicle(null);
+              setSelectedVehicle(undefined);
               setIsModalOpen(true);
             }}
-            className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
-            <FiPlus className="w-5 h-5 mr-2" />
+            <FiPlus className="w-4 h-4 mr-2" />
             Add Vehicle
           </button>
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <input
-            type="text"
-            placeholder="Search vehicles..."
-            className="px-4 py-2 border rounded-lg"
-          />
-          <select className="px-4 py-2 border rounded-lg">
-            <option value="">All Types</option>
-            <option value="sedan">Sedan</option>
-            <option value="suv">SUV</option>
-            <option value="van">Van</option>
-          </select>
-          <select className="px-4 py-2 border rounded-lg">
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <select className="px-4 py-2 border rounded-lg">
-            <option value="">Service Type</option>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search vehicles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Types</option>
             <option value="taxi">Taxi</option>
             <option value="rental">Rental</option>
-            <option value="both">Both</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Status</option>
+            <option value="AVAILABLE">Available</option>
+            <option value="MAINTENANCE">Maintenance</option>
+            <option value="INACTIVE">Inactive</option>
           </select>
         </div>
 
         {/* Vehicles Table */}
-        <div className="overflow-x-auto bg-white rounded-lg shadow">
-          <table className="w-full">
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -112,81 +214,71 @@ export default function VehiclesPage() {
                   Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Plate No
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Services
+                  Price/Day
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Price/Km
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {vehicles.map((vehicle) => (
+              {filteredVehicles.map((vehicle) => (
                 <tr key={vehicle.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0 w-10 h-10">
+                      <div className="h-10 w-10 flex-shrink-0">
                         <img
-                          className="w-10 h-10 rounded-full"
+                          className="h-10 w-10 rounded-full object-cover"
                           src={vehicle.imgUrl}
-                          alt={vehicle.model}
+                          alt=""
                         />
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
                           {vehicle.make} {vehicle.model}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {vehicle.year}
-                        </div>
+                        <div className="text-sm text-gray-500">{vehicle.plateNo}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{vehicle.type}</div>
+                    <div className="text-sm text-gray-900">
+                      {vehicle.isTaxi && 'Taxi'}
+                      {vehicle.isRent && 'Rental'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{vehicle.plateNo}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      vehicle.status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : vehicle.status === 'maintenance'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(vehicle.status)}`}>
                       {vehicle.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {[
-                        vehicle.isTaxi && 'Taxi',
-                        vehicle.isRent && 'Rental'
-                      ].filter(Boolean).join(', ')}
-                    </div>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div>LKR{vehicle.pricePerDay}/day</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => openEditModal(vehicle)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <FiEdit2 className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteVehicle(vehicle.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <FiTrash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+
+                      <div>LKR{vehicle.pricePerKm}/km</div>
+
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      onClick={() => openEditModal(vehicle)}
+                      className="text-blue-600 hover:text-blue-900 mr-4"
+                    >
+                      <FiEdit2 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteVehicle(vehicle.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <FiTrash2 className="w-5 h-5" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -195,64 +287,47 @@ export default function VehiclesPage() {
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6">
-          <div className="flex justify-between flex-1 sm:hidden">
-            <button className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing page {currentPage} of {totalPages}
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 border rounded-md disabled:opacity-50"
+            >
               Previous
             </button>
-            <button className="relative inline-flex items-center px-4 py-2 ml-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 border rounded-md disabled:opacity-50"
+            >
               Next
             </button>
           </div>
-          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">1</span> to{' '}
-                <span className="font-medium">10</span> of{' '}
-                <span className="font-medium">20</span> results
-              </p>
-            </div>
-            <div>
-              <nav className="relative z-0 inline-flex -space-x-px rounded-md shadow-sm">
-                <button className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50">
-                  Previous
-                </button>
-                <button className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300">
-                  1
-                </button>
-                <button className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300">
-                  2
-                </button>
-                <button className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300">
-                  3
-                </button>
-                <button className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50">
-                  Next
-                </button>
-              </nav>
-            </div>
-          </div>
         </div>
-      </div>
 
-      {/* Add/Edit Vehicle Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedVehicle(null);
-        }}
-        title={selectedVehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
-      >
-        <VehicleForm
-          vehicle={selectedVehicle || undefined}
-          onSubmit={selectedVehicle ? handleEditVehicle : handleAddVehicle}
-          onCancel={() => {
+        {/* Add/Edit Vehicle Modal */}
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => {
             setIsModalOpen(false);
-            setSelectedVehicle(null);
+            setSelectedVehicle(undefined);
           }}
-        />
-      </Modal>
+          title={selectedVehicle ? 'Edit Vehicle' : 'Add Vehicle'}
+        >
+          <VehicleForm
+            vehicle={selectedVehicle}
+            onSubmit={selectedVehicle ? handleEditVehicle : handleAddVehicle}
+            onCancel={() => {
+              setIsModalOpen(false);
+              setSelectedVehicle(undefined);
+            }}
+          />
+        </Modal>
+      </div>
     </DashboardLayout>
   );
 } 
