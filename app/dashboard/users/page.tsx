@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import UserForm from '../../components/users/UserForm';
 import Modal from '../../components/common/Modal';
 import { FiPlus, FiEdit2, FiTrash2, FiCheck, FiX } from 'react-icons/fi';
 import type { User } from '../../types';
+import { fetchUsers } from '@/app/services/userService';
 
 // Dummy data for users
-const users: User[] = [
+const usersMock: User[] = [
   {
     id: '1',
     username: 'johndoe',
@@ -33,6 +34,7 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [users, setUsers] = useState([]);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
@@ -68,6 +70,16 @@ export default function UsersPage() {
     setSelectedUser(user);
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    fetchUserList();
+  },[])
+
+  const fetchUserList = async () => {
+    const response = await fetchUsers();
+    setUsers(response.users);
+    console.log(response.users);
+  }
 
   return (
     <DashboardLayout>
@@ -134,26 +146,26 @@ export default function UsersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Online
-                </th>
+                </th> */}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
+              {users.map((user) => (
                 <tr key={user.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0 w-10 h-10">
+                      {/* <div className="flex-shrink-0 w-10 h-10">
                         <img
                           className="w-10 h-10 rounded-full"
                           src={user.imgUrl}
                           alt={`${user.firstName} ${user.lastName}`}
                         />
-                      </div>
+                      </div> */}
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
                           {user.firstName} {user.lastName}
@@ -166,41 +178,47 @@ export default function UsersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      user.role === 'admin'
+                      user.role?.name === 'admin'
                         ? 'bg-purple-100 text-purple-800'
-                        : user.role === 'driver'
+                        : user.role?.name === 'driver'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {user.role}
+                      {user.role?.name}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{user.mobileNo}</div>
-                    {user.role === 'driver' && (
+                    {user.role?.name === 'driver' && (
+                      <div className="text-sm text-gray-500">
+                        License: {user.driverLicNo}
+                      </div>
+                    )}
+                    {user.role?.name === 'user' && (
                       <div className="text-sm text-gray-500">
                         License: {user.driverLicNo}
                       </div>
                     )}
                   </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      user.status === 'active'
+                      user.status === 1
                         ? 'bg-green-100 text-green-800'
-                        : user.status === 'inactive'
+                        : user.status === 2
                         ? 'bg-gray-100 text-gray-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
-                      {user.status}
+                      {user.status === 1 ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  {/* <td className="px-6 py-4 whitespace-nowrap">
                     {user.isOnline ? (
                       <FiCheck className="w-5 h-5 text-green-500" />
                     ) : (
                       <FiX className="w-5 h-5 text-red-500" />
                     )}
-                  </td>
+                  </td> */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="flex space-x-2">
                       <button

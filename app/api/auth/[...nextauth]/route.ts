@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
 const handler = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -11,7 +12,7 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         try {
-          const response = await fetch('http://localhost:8080/api/auth/login', {
+          const response = await fetch('http://localhost:8080/api/auth/admin/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -22,26 +23,40 @@ const handler = NextAuth({
             }),
           });
 
+          console.log("response", response)
+
+          const data = await response.json();
+
           if (!response.ok) {
-            throw new Error('Authentication failed');
+            throw new Error(data.message || 'Authentication failed');
           }
 
-          const token = await response.text();
-          
+          if (data.status !== 200) {
+            throw new Error(data.message || 'Authentication failed');
+          }
+
+          const loginResponse = data.data; // This contains LoginResponse object
+          const token = loginResponse.accessToken;
+
+          if (!token) {
+            throw new Error('No token received');
+          }
+
+          // Parse the JWT token
           const base64Url = token.split('.')[1];
           const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
           const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
           }).join(''));
-          
+
           const userData = JSON.parse(jsonPayload);
 
           return {
-            id: userData.sub,
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-            token: token, 
+            id: loginResponse.id,
+            name: loginResponse.username,
+            email: userData?.email || loginResponse.username,
+            role: 'admin', // Since this is admin login endpoint
+            token: token,
           };
         } catch (error) {
           console.error('Auth error:', error);
@@ -54,14 +69,14 @@ const handler = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
-        token.token = user.token; 
+        token.token = user.token;
       }
       return token;
     },
     async session({ session, token }) {
       if (session?.user) {
         session.user.role = token.role as string;
-        session.user.token = token.token as string; 
+        session.user.token = token.token as string;
       }
       return session;
     },

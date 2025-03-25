@@ -25,16 +25,14 @@ export default function VehiclesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const recordsPerPage = 10;
 
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, router]);
+  // useEffect(() => {
+  //   if (status === 'unauthenticated') {
+  //     router.push('/login');
+  //   }
+  // }, [status, router]);
 
   useEffect(() => {
-    if (status === 'authenticated' && session) {
-      fetchVehicles();
-    }
+    fetchVehicles();
   }, [currentPage, status, session]);
 
   const fetchVehicles = async () => {
@@ -131,25 +129,26 @@ export default function VehiclesPage() {
     );
   }
 
-  if (status === 'unauthenticated') {
-    return null; // Will be redirected by the useEffect
-  }
+  // if (status === 'unauthenticated') {
+  //   return null; // Will be redirected by the useEffect
+  // }
 
-  if (error) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col items-center justify-center h-full gap-4">
-          <div className="text-red-600">{error}</div>
-          <button
-            onClick={fetchVehicles}
-            className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
-          >
-            Try Again
-          </button>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  // if (error) {
+  //   console.log(error);
+  //   return (
+  //     <DashboardLayout>
+  //       <div className="flex flex-col items-center justify-center h-full gap-4">
+  //         <div className="text-red-600">{error}</div>
+  //         <button
+  //           onClick={fetchVehicles}
+  //           className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
+  //         >
+  //           Try Again
+  //         </button>
+  //       </div>
+  //     </DashboardLayout>
+  //   );
+  // }
 
   return (
     <DashboardLayout>

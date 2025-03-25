@@ -2,6 +2,8 @@
 
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { FiUsers, FiTruck, FiCalendar, FiDollarSign } from 'react-icons/fi';
+import { fetchBookings, fetchDashboard } from '../services/dashboardService';
+import { useEffect, useState } from 'react';
 
 const stats = [
   {
@@ -54,33 +56,92 @@ const recentBookings = [
   // Add more dummy data as needed
 ];
 
+
+
 export default function DashboardPage() {
+  const [dashboardData, setDashboardData] = useState({});
+  const [bookings, setBookings] = useState([]);
+
+
+  useEffect(() => {
+    fetchBookingsList();
+    fetchDasboardData();
+  }, []);
+
+const fetchBookingsList = async () => {
+  const response = await fetchBookings();
+  console.log(response);
+  setBookings(response?.bookings);
+}
+
+const fetchDasboardData = async () => {
+  const response = await fetchDashboard()
+  setDashboardData(response);
+}
+
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
+
             <div
-              key={stat.title}
               className="p-6 bg-white rounded-lg shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">{stat.title}</p>
-                  <p className="text-2xl font-semibold">{stat.value}</p>
+                  <p className="text-sm text-gray-500">Total Users</p>
+                  <p className="text-2xl font-semibold">{dashboardData?.totalUsers || 0}</p>
                 </div>
                 <div className="p-3 bg-gray-100 rounded-full">
-                  <stat.icon className="w-6 h-6 text-gray-700" />
+                  <FiUsers className="w-6 h-6 text-gray-700" />
                 </div>
               </div>
-              <div className={`mt-2 text-sm ${
-                stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {stat.change} from last month
+            </div>
+
+            <div
+              className="p-6 bg-white rounded-lg shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Active Vehicles</p>
+                  <p className="text-2xl font-semibold">{dashboardData?.totalVehicles || 0}</p>
+                </div>
+                <div className="p-3 bg-gray-100 rounded-full">
+                  <FiTruck className="w-6 h-6 text-gray-700" />
+                </div>
               </div>
             </div>
-          ))}
+
+            <div
+              className="p-6 bg-white rounded-lg shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Total Bookings</p>
+                  <p className="text-2xl font-semibold">{dashboardData?.totalBookings || 0}</p>
+                </div>
+                <div className="p-3 bg-gray-100 rounded-full">
+                  <FiCalendar className="w-6 h-6 text-gray-700" />
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="p-6 bg-white rounded-lg shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Revenue (LKR)</p>
+                  <p className="text-2xl font-semibold">{dashboardData?.totalRevenue || 0.00} LKR</p>
+                </div>
+                <div className="p-3 bg-gray-100 rounded-full">
+                  <FiDollarSign className="w-6 h-6 text-gray-700" />
+                </div>
+              </div>
+            </div>
+
         </div>
 
         {/* Recent Bookings */}
@@ -92,6 +153,7 @@ export default function DashboardPage() {
                 <tr className="text-left border-b">
                   <th className="pb-3">Booking ID</th>
                   <th className="pb-3">Customer</th>
+                  <th className="pb-3">Vehicle</th>
                   <th className="pb-3">Type</th>
                   <th className="pb-3">Date</th>
                   <th className="pb-3">Amount</th>
@@ -99,13 +161,18 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentBookings.map((booking) => (
+                {bookings.map((booking) => (
                   <tr key={booking.id} className="border-b">
                     <td className="py-3">{booking.id}</td>
-                    <td>{booking.customer}</td>
-                    <td>{booking.type}</td>
-                    <td>{booking.date}</td>
-                    <td>{booking.amount}</td>
+                    <td>{booking.user.firstName}</td>
+                    <td>{booking.vehicle.plateNo}</td>
+                    <td>{booking.bookingType}</td>
+                    <td>{new Date(booking.tripDate).toLocaleDateString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}</td>
+                    <td>LKR {booking.order.totalAmount}</td>
                     <td>
                       <span className={`px-2 py-1 text-sm rounded-full ${
                         booking.status === 'completed' 

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import { FiEye, FiCheck, FiX } from 'react-icons/fi';
 import type { Booking, User, Vehicle } from '../../types';
+import { fetchBookings } from '@/app/services/dashboardService';
 
 // Dummy data for bookings
 const bookings: (Booking & { order: { totalAmount: number; paidAmount: number } })[] = [
@@ -59,20 +60,8 @@ export default function BookingsPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [bookings, setBookings] = useState([]);
 
-  const filteredBookings = bookings.filter(booking => {
-    const matchesSearch = 
-      booking.user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.orderId.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = typeFilter ? booking.bookingType === typeFilter : true;
-    const matchesStatus = statusFilter ? booking.status === statusFilter : true;
-    const matchesDate = dateFilter ? 
-      booking.tripDate.toISOString().split('T')[0] === dateFilter : true;
-
-    return matchesSearch && matchesType && matchesStatus && matchesDate;
-  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -88,6 +77,32 @@ export default function BookingsPage() {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+
+  
+  
+    useEffect(() => {
+      fetchBookingsList();
+    }, []);
+  
+  const fetchBookingsList = async () => {
+    const response = await fetchBookings();
+    console.log(response);
+    setBookings(response?.bookings);
+  }
+  
+  const filteredBookings = bookings.filter(booking => {
+    const matchesSearch = 
+      booking.user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      booking.user.lastName.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesType = typeFilter ? booking.bookingType === typeFilter : true;
+    const matchesStatus = statusFilter ? booking.status === statusFilter : true;
+    const matchesDate = dateFilter ? 
+      booking.tripDate.toISOString().split('T')[0] === dateFilter : true;
+      
+    return matchesSearch && matchesType && matchesStatus && matchesDate;
+  });
 
   return (
     <DashboardLayout>
@@ -175,11 +190,23 @@ export default function BookingsPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 w-10 h-10">
+                      {booking.user.avatarUrl ? (
                         <img
-                          className="w-10 h-10 rounded-full"
-                          src={booking.user.imgUrl}
+                          src={booking.user.avatarUrl}
                           alt={`${booking.user.firstName} ${booking.user.lastName}`}
                         />
+                      ) : (
+                        <svg
+                          width="800px"
+                          height="800px"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <g transform="translate(0 -1028.4)">
+                            <path d="M12 0c-0.405 0-0.805 0.060326-1.188 0.15625-0.224 0.05678-0.44 0.13135-0.656 0.21875-0.083 0.03401-0.1679 0.05534-0.2498 0.09375-0.034 0.01583-0.06 0.04594-0.0937 0.0625-0.2032 0.10058-0.4021 0.21704-0.5937 0.34375-0.027 0.0174-0.0671 0.01339-0.0938 0.03125-0.0563 0.03864-0.101 0.08419-0.1562 0.12495-0.1569 0.1126-0.3216 0.216-0.4688 0.3438-0.1342 0.1207-0.2494 0.2724-0.375 0.4062-0.4251 0.4359-0.7936 0.8971-1.0938 1.4376-0.5154 0.9034-0.9002 1.9205-1.0624 2.9687-0.0783-0.0165-0.1501-0.0224-0.2188 0-0.5251 0.171-0.6545 1.1685-0.3125 2.2187 0.2007 0.6163 0.5346 1.1015 0.875 1.375 0.4573 1.7778 1.4257 3.2598 2.6875"></path>
+                          </g>
+                        </svg>
+                      )}
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
@@ -209,7 +236,7 @@ export default function BookingsPage() {
                       ${booking.order.totalAmount}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {booking.order.paidAmount === booking.order.totalAmount ? (
+                      {booking.order.totalAmount === booking.order.totalAmount ? (
                         <span className="text-green-600">Paid</span>
                       ) : (
                         <span className="text-red-600">
@@ -244,7 +271,7 @@ export default function BookingsPage() {
               <p className="text-sm text-gray-700">
                 Showing <span className="font-medium">1</span> to{' '}
                 <span className="font-medium">10</span> of{' '}
-                <span className="font-medium">20</span> results
+                <span className="font-medium">{}</span> results
               </p>
             </div>
             <div>
